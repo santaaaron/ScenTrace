@@ -26,9 +26,17 @@ class Check(BaseModel):
 
     @model_validator(mode="after")
     def validate_check_type(self) -> Check:
-        allowed = {"contains", "forbidden", "regex", "json_valid", "max_turns", "semantic", "python"}
-        if self.type not in allowed:
-            raise ValueError(f"Unknown check type '{self.type}'. Allowed: {', '.join(sorted(allowed))}")
+        builtin = {"contains", "forbidden", "regex", "json_valid", "max_turns", "semantic", "python"}
+        if self.type in builtin:
+            return self
+        try:
+            from scen_trace.plugins import discover_checks
+            plugin_checks = set(discover_checks().keys())
+            if self.type in plugin_checks:
+                return self
+        except ImportError:
+            pass
+        raise ValueError(f"Unknown check type '{self.type}'. Allowed: {', '.join(sorted(builtin))}")
         return self
 
 

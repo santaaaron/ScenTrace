@@ -121,6 +121,28 @@ class TestPythonCheck:
         assert r.passed
 
 
+class TestSemanticCheck:
+    def test_missing_extra_fails_with_hint(self, monkeypatch):
+        import scen_trace.checks as checks_mod
+        monkeypatch.setattr(checks_mod, "_SEMANTIC_MODEL", None)
+
+        original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+        def mock_import(name, *args, **kwargs):
+            if name == "sentence_transformers":
+                raise ImportError("No module named 'sentence_transformers'")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.__import__", mock_import)
+        r = evaluate_check("c1", "semantic", {"reference_answer": "hello", "threshold": 0.5}, "hi there")
+        assert not r.passed
+        assert "scen-trace[semantic]" in r.message
+
+    def test_missing_reference_answer_fails(self):
+        r = evaluate_check("c1", "semantic", {}, "some response")
+        assert not r.passed
+        assert "reference_answer" in r.message
+
+
 class TestUnknownCheckType:
     def test_unknown_type_fails(self):
         r = evaluate_check("c1", "unknown", {}, "text")

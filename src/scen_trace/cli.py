@@ -603,7 +603,7 @@ def serve(host: str, port: int, analytics_dir: str, no_open: bool) -> None:
     except ImportError:
         console.print(Panel(
             "[yellow]Web dashboard requires extra dependencies.[/yellow]\n\n"
-            "Install with:\n  [cyan]pip install scenetrace[web][/cyan]",
+            'Install with:\n  [cyan]pip install "scen-trace[web]"[/cyan]',
             title="Missing Web Dependencies",
             border_style="yellow",
         ))

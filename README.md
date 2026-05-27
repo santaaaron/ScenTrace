@@ -1,8 +1,8 @@
 # ScenTrace
 
-**Regression testing for multi-agent AI workflows. Local-first. Zero egress.**
+**Unit tests and regression baselines for AI agent workflows, runnable locally and in CI.**
 
-ScenTrace helps you define repeatable scenarios for AI agents, run them locally or in CI/CD, capture full execution traces, detect regressions, compare prompts and models, and generate reports — all without sending a single prompt to a third-party dashboard. Your data stays on your machine.
+ScenTrace helps you define repeatable scenarios for AI agents, run them locally or in CI/CD, capture full execution traces, detect regressions, and generate reports — all without sending a single prompt to a third-party dashboard. Your data stays on your machine.
 
 ---
 
@@ -33,24 +33,17 @@ ScenTrace solves this by giving you a **local, repeatable, CI/CD-friendly regres
 
 ## Why is it needed?
 
-### The problem
-
 Every time you change a prompt, swap a model, or update your agent logic, you're guessing whether it still works correctly. Manual testing doesn't scale. Traditional unit tests can't evaluate natural-language outputs. Cloud observability platforms require you to trust a third party with your data.
 
-### What ScenTrace does differently
+### How ScenTrace is different
 
-| | ScenTrace | LangSmith | Promptfoo |
-|---|---|---|---|
-| **Runs locally** | Yes | No (cloud) | Yes |
-| **Zero data egress** | Yes | No | Partial |
-| **Multi-agent traces** | Built-in | Manual | Limited |
-| **Cost tracking** | Per-turn, per-agent | Aggregated | Per-eval |
-| **Semantic checks** | Local embeddings | Cloud-based | External |
-| **Baseline regression** | Built-in drift detection | Manual comparison | Snapshot-based |
-| **CI/CD native** | Copy-paste GitHub Actions | SDK integration | Config required |
-| **Reports** | Self-contained HTML + Markdown | Cloud dashboard | JSON |
-| **Setup time** | < 3 minutes | Account + SDK | Config + eval |
-| **Web dashboard** | Local (`scenetrace serve`) | Hosted only | None |
+ScenTrace is a **scenario regression testing tool**, not an observability platform. It is designed to run alongside tools like LangSmith or Helicone, not replace them.
+
+- **Local trace artifacts by default.** Traces are JSON files on disk, versioned with your code.
+- **Designed for CI and baseline diffs.** Runs in GitHub Actions, fails the build when checks regress.
+- **Zero data egress.** No prompts or responses leave your machine unless you choose a cloud provider.
+- **Multi-agent trace capture.** Built-in support for multi-agent turn sequences with per-agent cost tracking.
+- **Self-contained reports.** Single-file HTML reports with no external dependencies.
 
 ---
 
@@ -99,6 +92,14 @@ pip install "scen-trace[web]"
 **Everything:**
 ```bash
 pip install "scen-trace[all]"
+```
+
+**Development install:**
+```bash
+git clone https://github.com/santaaaron/ScenTrace.git
+cd ScenTrace
+uv sync --all-extras --dev
+uv run pytest
 ```
 
 Requires Python 3.10+.
@@ -251,9 +252,9 @@ Opens a local web dashboard at `http://127.0.0.1:8000` with cost trend charts, e
 |------|-------------|-------|
 | `contains` | Response includes substring | Case-insensitive, trims whitespace |
 | `forbidden` | Response must NOT include substring | Case-insensitive |
-| `regex` | Response matches pattern | 5s timeout to prevent catastrophic backtracking |
-| `json_valid` | Response is valid JSON | Strips markdown code blocks (`` ```json `` ) automatically |
-| `python` | Custom Python script check | Runs in subprocess with timeout for safety |
+| `regex` | Response matches pattern | Uses `regex` library with native 5s timeout |
+| `json_valid` | Response is valid JSON | Strips markdown code blocks automatically |
+| `python` | Custom Python script check | Runs in subprocess with timeout (see trust note below) |
 | `semantic` | Embedding similarity check | Requires `scen-trace[semantic]`; local model, no network |
 
 ### Custom Python Checks
@@ -281,6 +282,8 @@ checks:
       script_path: checks/has_greeting.py
 ```
 
+> **Trust boundary:** Python checks execute trusted local code in a subprocess with a minimal environment. Do not run untrusted scenario or check files. See the [Current Limitations](#current-limitations) section.
+
 ### Semantic Checks (Fuzzy Matching)
 
 For when exact string matching is too brittle:
@@ -294,7 +297,7 @@ checks:
       threshold: 0.75   # cosine similarity (0.0 - 1.0)
 ```
 
-Requires `pip install "scen-trace[semantic]"`. Uses local embeddings (`all-MiniLM-L6-v2`) — no prompts leave your machine.
+Requires `pip install "scen-trace[semantic]"`. Uses local embeddings (`all-MiniLM-L6-v2`) — no prompts leave your machine. If the extra is not installed, the check fails with a clear install hint.
 
 ---
 
@@ -351,20 +354,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v4
 
-      - name: Install ScenTrace
-        run: pip install scen-trace
+      - name: Install
+        run: uv sync --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest tests/ -q
 
       - name: Run scenarios
-        run: scenetrace run .scenetrace/example_scenario.yaml --provider mock -o traces/result.json
+        run: uv run scenetrace run .scenetrace/example_scenario.yaml --provider mock -o traces/result.json
 
       - name: Generate report
         if: always()
-        run: scenetrace report traces/result.json -o traces/report.html
+        run: uv run scenetrace report traces/result.json -o traces/report.html
 
       - name: Upload traces on failure
         if: failure()
@@ -403,7 +406,7 @@ pip install scenetrace-azure
 scenetrace plugin list
 ```
 
-To create a plugin, register entry points under `scenetrace.providers` or `scenetrace.checks` in your package's `pyproject.toml`.
+To create a plugin, register entry points under `scenetrace.providers` or `scenetrace.checks` in your package's `pyproject.toml`. Plugin check types are automatically allowed in scenario YAML validation.
 
 ---
 
@@ -429,13 +432,24 @@ All data is stored locally in `.scenetrace/` (SQLite for analytics/baselines, JS
 
 ---
 
+## Current Limitations
+
+- **Semantic checks** use a local embedding model (~80MB download on first use). Results depend on the model and may not capture all nuances of domain-specific language.
+- **Python checks** execute trusted local code in a subprocess. They are not sandboxed — do not run untrusted scenario or check files.
+- **Mock provider** echoes prompts back as responses. It is useful for smoke tests and CI validation, but does not simulate real LLM behavior. Use real providers for behavioral regression testing.
+- **Provider support** is currently limited to Mock and OpenAI. Anthropic and other providers can be added via the plugin system.
+- **Baseline comparisons** operate on artifact-level metrics (cost, latency, token count, check pass/fail). They do not perform semantic comparison of response content unless semantic checks are configured.
+- **Regex checks** use the `regex` library with a 5-second native timeout. Extremely complex patterns may still consume resources up to the timeout.
+
+---
+
 ## Development
 
 ```bash
-git clone https://github.com/SantaAaron/ScenTrace.git
+git clone https://github.com/santaaaron/ScenTrace.git
 cd ScenTrace
-pip install -e ".[dev]"
-pytest tests/ -q
+uv sync --all-extras --dev
+uv run pytest
 ```
 
 ---
@@ -451,10 +465,11 @@ pytest tests/ -q
 - [x] Cost analytics & efficiency scoring
 - [x] Plugin discovery via entry points
 - [x] Local web dashboard
+- [ ] Scripted mock responses (per-agent, per-turn)
 - [ ] `scenetrace diff` — trace comparison CLI
 - [ ] `scenetrace sync` — team baseline sharing
 - [ ] Anthropic & OpenRouter provider adapters
-- [ ] CI/CD PR comment generation
+- [ ] Extended provider metadata (prompt hashes, seed, request timestamps)
 
 ---
 

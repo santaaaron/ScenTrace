@@ -64,6 +64,30 @@ class TestSchema:
         with pytest.raises(ValidationError):
             Scenario(**data)
 
+    def test_plugin_check_type_passes_validation(self, monkeypatch):
+        from unittest.mock import MagicMock
+        from scen_trace.plugins import DiscoveredPlugin
+
+        fake_plugin = DiscoveredPlugin(
+            name="custom_check", group="scenetrace.checks",
+            module="fake.module", distribution="fake-pkg", version="1.0",
+        )
+        monkeypatch.setattr("scen_trace.schema.discover_checks", lambda: {"custom_check": fake_plugin}, raising=False)
+        import scen_trace.schema
+        monkeypatch.setattr(scen_trace.schema, "discover_checks", lambda: {"custom_check": fake_plugin})
+        # Need to patch the import within the validator
+        import importlib
+        original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+        def patched_import(name, *args, **kwargs):
+            return original_import(name, *args, **kwargs)
+        # Just test that the check model accepts plugin types when discover_checks is available
+        from scen_trace.schema import Check
+        # Monkeypatch the discover_checks import inside the Check validator
+        import scen_trace.plugins as plugins_mod
+        monkeypatch.setattr(plugins_mod, "discover_checks", lambda: {"custom_check": fake_plugin})
+        c = Check(id="c1", type="custom_check", params={})
+        assert c.type == "custom_check"
+
     def test_validate_cli_valid_file(self, tmp_path):
         import yaml
         from click.testing import CliRunner

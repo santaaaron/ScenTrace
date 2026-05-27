@@ -5,9 +5,10 @@ import os
 import re
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from pathlib import Path
+
+import regex as regex_lib
 
 
 @dataclass
@@ -27,17 +28,53 @@ def _strip_markdown_code_blocks(text: str) -> str:
 
 
 def _regex_with_timeout(pattern: str, text: str, timeout: int = 5) -> bool | None:
-    def _do_match() -> bool:
-        return bool(re.search(pattern, text))
+    try:
+        return bool(regex_lib.search(pattern, text, timeout=timeout))
+    except regex_lib.error:
+        return None
+    except TimeoutError:
+        return None
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_do_match)
+
+_SEMANTIC_MODEL = None
+
+
+def _get_semantic_model():
+    global _SEMANTIC_MODEL
+    if _SEMANTIC_MODEL is None:
         try:
-            return future.result(timeout=timeout)
-        except FuturesTimeoutError:
-            return None
-        except re.error:
-            return None
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            raise ImportError(
+                "Semantic checks require extra dependencies.\n"
+                "Install with: pip install \"scen-trace[semantic]\""
+            )
+        _SEMANTIC_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+    return _SEMANTIC_MODEL
+
+
+def _evaluate_semantic(response: str, params: dict) -> CheckResult:
+    reference = params.get("reference_answer", "")
+    threshold = params.get("threshold", 0.75)
+
+    if not reference:
+        return CheckResult("", "semantic", False, "Missing 'reference_answer' in params")
+
+    try:
+        model = _get_semantic_model()
+    except ImportError as e:
+        return CheckResult("", "semantic", False, str(e))
+
+    embeddings = model.encode([response, reference])
+    from numpy import dot
+    from numpy.linalg import norm
+    similarity = float(dot(embeddings[0], embeddings[1]) / (norm(embeddings[0]) * norm(embeddings[1])))
+
+    passed = similarity >= threshold
+    return CheckResult(
+        "", "semantic", passed,
+        f"Similarity {similarity:.3f} {'≥' if passed else '<'} threshold {threshold}"
+    )
 
 
 def _run_python_check(
@@ -63,13 +100,22 @@ def _run_python_check(
         "sys.exit(0 if result else 1)\n"
     )
 
+    safe_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "HOME": os.environ.get("HOME", ""),
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+    }
+    if "VIRTUAL_ENV" in os.environ:
+        safe_env["VIRTUAL_ENV"] = os.environ["VIRTUAL_ENV"]
+
     try:
         proc = subprocess.run(
             [sys.executable, "-c", wrapper, str(resolved), response, json.dumps(context)],
             capture_output=True,
             text=True,
             timeout=timeout,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            env=safe_env,
         )
         if proc.returncode == 0:
             return CheckResult("", "python", True, "Python check passed")
@@ -120,7 +166,9 @@ def evaluate_check(
         return CheckResult(check_id, check_type, True, "max_turns evaluated at scenario level")
 
     if check_type == "semantic":
-        return CheckResult(check_id, check_type, True, "Semantic check placeholder (V1 pass-through)")
+        result = _evaluate_semantic(response, params)
+        result.check_id = check_id
+        return result
 
     if check_type == "python":
         script_path = params.get("script_path", "")
