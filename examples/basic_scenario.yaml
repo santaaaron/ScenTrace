@@ -1,0 +1,34 @@
+scenario_id: greet_user
+description: A simple multi-agent greeting scenario with variable injection
+
+variables:
+  user_name: Alice
+
+agents:
+  - name: greeter
+    role: assistant
+    system_prompt: You are a friendly greeter. Always include the user's name in your response.
+  - name: validator
+    role: assistant
+    system_prompt: You validate greetings and confirm they are appropriate.
+
+model_config:
+  provider: mock
+  model_name: mock-v1
+  temperature: 0.7
+  max_tokens: 256
+
+turns:
+  - agent_name: greeter
+    prompt: "Say hello to {{user_name}}"
+    expected_checks:
+      - greeting_check
+  - agent_name: validator
+    prompt: "Is this greeting appropriate?"
+    expected_checks: []
+
+checks:
+  - id: greeting_check
+    type: contains
+    params:
+      text: "mock response"

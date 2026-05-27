@@ -1,0 +1,28 @@
+scenario_id: hello_world
+description: A basic multi-agent greeting test to verify ScenTrace is working.
+
+variables:
+  user_name: Alice
+
+agents:
+  - name: assistant
+    role: assistant
+    system_prompt: You are a helpful assistant. Always greet users by name.
+
+model_config:
+  provider: mock
+  model_name: mock-v1
+  temperature: 0.7
+  max_tokens: 256
+
+turns:
+  - agent_name: assistant
+    prompt: "Say hello to {{user_name}}"
+    expected_checks:
+      - greeting_check
+
+checks:
+  - id: greeting_check
+    type: contains
+    params:
+      text: "mock response"

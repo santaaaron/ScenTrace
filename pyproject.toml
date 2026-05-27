@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scen-trace"
+version = "2.2.0"
+description = "Scenario-based regression testing and trace-reporting for multi-agent AI workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "ScenTrace Contributors" },
+]
+keywords = ["testing", "regression", "ai", "llm", "multi-agent", "traces", "scenarios"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "click>=8.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.20.0"]
+web = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+]
+all = ["scen-trace[openai,anthropic,web]"]
+dev = [
+    "pytest>=7.0",
+    "pytest-mock>=3.0",
+    "httpx>=0.24.0",
+    "scen-trace[openai,web]",
+]
+
+[project.scripts]
+scenetrace = "scen_trace.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scen_trace"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

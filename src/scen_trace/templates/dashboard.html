@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScenTrace Dashboard</title>
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f8f9fa; --bg3: #e9ecef;
+  --fg: #212529; --fg2: #495057; --fg3: #868e96;
+  --border: #dee2e6; --accent: #228be6; --accent2: #1971c2;
+  --green: #2f9e44; --red: #e03131; --yellow: #f08c00;
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+[data-theme="dark"] {
+  --bg: #1a1b1e; --bg2: #25262b; --bg3: #2c2e33;
+  --fg: #c1c2c5; --fg2: #909296; --fg3: #5c5f66;
+  --border: #373a40; --accent: #4dabf7; --accent2: #74c0fc;
+  --green: #51cf66; --red: #ff6b6b; --yellow: #ffd43b;
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.5; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 0; margin-bottom: 24px; }
+header .container { display: flex; justify-content: space-between; align-items: center; }
+header h1 { font-size: 20px; font-weight: 600; }
+header h1 span { color: var(--accent); }
+.theme-toggle { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; cursor: pointer; color: var(--fg); font-size: 14px; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: var(--card-shadow); }
+.stat-card .label { font-size: 12px; color: var(--fg3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 12px; color: var(--fg2); margin-top: 4px; }
+
+.section { margin-bottom: 32px; }
+.section h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--fg2); }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; box-shadow: var(--card-shadow); margin-bottom: 16px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--border); color: var(--fg3); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--bg3); }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-pass { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+.badge-fail { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+
+.score-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.score-bar .bar-bg { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; max-width: 200px; }
+.score-bar .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+.score-bar .bar-label { font-size: 13px; color: var(--fg2); min-width: 80px; }
+.score-bar .bar-val { font-size: 13px; font-weight: 600; min-width: 40px; }
+
+.efficiency-panel { display: grid; grid-template-columns: auto 1fr; gap: 16px 32px; align-items: center; }
+.efficiency-total { font-size: 48px; font-weight: 800; text-align: center; }
+
+.chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding-top: 8px; }
+.chart-bar { flex: 1; min-width: 4px; max-width: 24px; border-radius: 3px 3px 0 0; transition: height 0.3s; position: relative; cursor: default; }
+.chart-bar:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 10; }
+.chart-labels { display: flex; gap: 4px; margin-top: 4px; }
+.chart-labels span { flex: 1; min-width: 4px; max-width: 24px; font-size: 9px; color: var(--fg3); text-align: center; overflow: hidden; }
+
+.empty-state { text-align: center; padding: 48px 20px; color: var(--fg3); }
+.empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--fg2); }
+.empty-state code { background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+
+.nav-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.nav-tab { padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; border: 1px solid transparent; color: var(--fg2); background: transparent; }
+.nav-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+.nav-tab:hover:not(.active) { background: var(--bg3); }
+
+.scenario-link { color: var(--accent); cursor: pointer; text-decoration: none; }
+.scenario-link:hover { text-decoration: underline; }
+.back-btn { color: var(--accent); cursor: pointer; background: none; border: none; font-size: 14px; margin-bottom: 12px; }
+.back-btn:hover { text-decoration: underline; }
+
+.loading { color: var(--fg3); text-align: center; padding: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <h1><span>Scen</span>Trace Dashboard</h1>
+    <button class="theme-toggle" onclick="toggleTheme()">Toggle Dark Mode</button>
+  </div>
+</header>
+
+<div class="container" id="app">
+  <div class="loading">Loading...</div>
+</div>
+
+<script>
+const API = '';
+let currentView = 'overview';
+let currentScenario = null;
+
+function toggleTheme() {
+  const html = document.documentElement;
+  html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? '' : 'dark');
+  localStorage.setItem('theme', html.getAttribute('data-theme'));
+}
+if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && matchMedia('(prefers-color-scheme:dark)').matches)) {
+  document.documentElement.setAttribute('data-theme', 'dark');
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(API + url);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function scoreColor(s) { return s >= 70 ? 'var(--green)' : s >= 40 ? 'var(--yellow)' : 'var(--red)'; }
+
+function renderScoreBar(label, score) {
+  return `<div class="score-bar">
+    <span class="bar-label">${esc(label)}</span>
+    <div class="bar-bg"><div class="bar-fill" style="width:${score}%;background:${scoreColor(score)}"></div></div>
+    <span class="bar-val" style="color:${scoreColor(score)}">${score}</span>
+  </div>`;
+}
+
+function renderBarChart(values, colors, labels) {
+  if (!values.length) return '<div class="empty-state">No data</div>';
+  const max = Math.max(...values, 0.001);
+  let bars = values.map((v, i) => {
+    const h = Math.max(2, (v / max) * 100);
+    return `<div class="chart-bar" style="height:${h}%;background:${colors[i] || 'var(--accent)'}" data-tip="${labels?.[i] || v}"></div>`;
+  }).join('');
+  return `<div class="chart-bars">${bars}</div>`;
+}
+
+async function renderOverview() {
+  const [scenarios, runs] = await Promise.all([fetchJSON('/api/scenarios'), fetchJSON('/api/runs?limit=20')]);
+
+  if (!scenarios.length && !runs.length) {
+    document.getElementById('app').innerHTML = `<div class="empty-state">
+      <h3>No data yet</h3>
+      <p>Run a scenario with tracking to populate the dashboard:</p>
+      <p style="margin-top:8px"><code>scenetrace run scenario.yaml --provider mock --track</code></p>
+    </div>`;
+    return;
+  }
+
+  const totalRuns = scenarios.reduce((s, sc) => s + sc.total_runs, 0);
+  const avgScore = scenarios.length ? Math.round(scenarios.reduce((s, sc) => s + sc.efficiency_score, 0) / scenarios.length) : 0;
+  const passRate = scenarios.length ? (scenarios.reduce((s, sc) => s + sc.pass_rate_pct, 0) / scenarios.length).toFixed(1) : '0';
+  const avgCost = scenarios.length ? (scenarios.reduce((s, sc) => s + sc.avg_cost, 0) / scenarios.length) : 0;
+
+  let html = `<div class="stats-grid">
+    <div class="stat-card"><div class="label">Scenarios</div><div class="value">${scenarios.length}</div></div>
+    <div class="stat-card"><div class="label">Total Runs</div><div class="value">${totalRuns}</div></div>
+    <div class="stat-card"><div class="label">Avg Efficiency</div><div class="value" style="color:${scoreColor(avgScore)}">${avgScore}</div><div class="sub">out of 100</div></div>
+    <div class="stat-card"><div class="label">Pass Rate</div><div class="value">${passRate}%</div></div>
+  </div>`;
+
+  html += `<div class="section"><h2>Scenarios</h2><div class="card"><table>
+    <tr><th>Scenario</th><th>Runs</th><th>Avg Cost</th><th>Avg Latency</th><th>Pass Rate</th><th>Score</th></tr>`;
+  for (const sc of scenarios) {
+    html += `<tr>
+      <td><a class="scenario-link" onclick="showScenario('${esc(sc.scenario_id)}')">${esc(sc.scenario_id)}</a></td>
+      <td>${sc.total_runs}</td>
+      <td>$${sc.avg_cost.toFixed(6)}</td>
+      <td>${sc.avg_latency_ms.toFixed(0)}ms</td>
+      <td>${sc.pass_rate_pct.toFixed(1)}%</td>
+      <td style="color:${scoreColor(sc.efficiency_score)};font-weight:600">${sc.efficiency_score}/100</td>
+    </tr>`;
+  }
+  html += '</table></div></div>';
+
+  if (runs.length) {
+    html += `<div class="section"><h2>Recent Runs</h2><div class="card"><table>
+      <tr><th>#</th><th>Scenario</th><th>Status</th><th>Cost</th><th>Latency</th><th>Tokens</th><th>Checks</th><th>Time</th></tr>`;
+    for (const r of runs) {
+      const badge = r.status === 'passed' ? '<span class="badge badge-pass">PASS</span>' : '<span class="badge badge-fail">FAIL</span>';
+      html += `<tr>
+        <td>${r.id}</td>
+        <td><a class="scenario-link" onclick="showScenario('${esc(r.scenario_id)}')">${esc(r.scenario_id)}</a></td>
+        <td>${badge}</td>
+        <td>$${r.total_cost.toFixed(6)}</td>
+        <td>${r.total_latency_ms.toFixed(0)}ms</td>
+        <td>${r.total_tokens}</td>
+        <td>${r.checks_passed}&#10003; / ${r.checks_failed}&#10007;</td>
+        <td style="font-size:12px;color:var(--fg3)">${r.timestamp.slice(0,19)}</td>
+      </tr>`;
+    }
+    html += '</table></div></div>';
+  }
+
+  document.getElementById('app').innerHTML = html;
+}
+
+async function showScenario(id) {
+  currentView = 'scenario';
+  currentScenario = id;
+  document.getElementById('app').innerHTML = '<div class="loading">Loading scenario data...</div>';
+
+  const data = await fetchJSON(`/api/scenarios/${encodeURIComponent(id)}`);
+
+  let html = `<button class="back-btn" onclick="showOverview()">&larr; Back to Overview</button>`;
+  html += `<h2 style="font-size:20px;margin-bottom:16px">${esc(id)}</h2>`;
+
+  // Efficiency panel
+  const e = data.efficiency;
+  html += `<div class="card"><div class="efficiency-panel">
+    <div class="efficiency-total" style="color:${scoreColor(e.total)}">${e.total}</div>
+    <div>
+      ${renderScoreBar('Checks (40%)', e.check_score)}
+      ${renderScoreBar('Cost (30%)', e.cost_score)}
+      ${renderScoreBar('Latency (20%)', e.latency_score)}
+      ${renderScoreBar('Tokens (10%)', e.token_score)}
+    </div>
+  </div></div>`;
+
+  // Trend stats
+  const t = data.trends;
+  html += `<div class="stats-grid">
+    <div class="stat-card"><div class="label">Total Runs</div><div class="value">${t.total_runs}</div></div>
+    <div class="stat-card"><div class="label">Avg Cost</div><div class="value">$${t.avg_cost.toFixed(6)}</div></div>
+    <div class="stat-card"><div class="label">Avg Latency</div><div class="value">${t.avg_latency_ms.toFixed(0)}ms</div></div>
+    <div class="stat-card"><div class="label">Pass Rate</div><div class="value">${t.pass_rate_pct.toFixed(1)}%</div></div>
+  </div>`;
+
+  // Cost chart
+  if (data.recent_runs.length > 1) {
+    const costs = data.recent_runs.map(r => r.total_cost).reverse();
+    const colors = data.recent_runs.map(r => r.status === 'passed' ? 'var(--green)' : 'var(--red)').reverse();
+    const tips = data.recent_runs.map(r => `$${r.total_cost.toFixed(6)}`).reverse();
+    html += `<div class="section"><h2>Cost Trend</h2><div class="card">${renderBarChart(costs, colors, tips)}</div></div>`;
+  }
+
+  // Agent breakdown
+  if (data.agent_breakdown.length) {
+    html += `<div class="section"><h2>Agent Breakdown (Latest Run)</h2><div class="card"><table>
+      <tr><th>Agent</th><th>Turns</th><th>Tokens</th><th>Avg Latency</th><th>Cost Share</th></tr>`;
+    for (const a of data.agent_breakdown) {
+      html += `<tr><td>${esc(a.agent_name)}</td><td>${a.turn_count}</td><td>${a.total_tokens}</td>
+        <td>${a.avg_latency_ms.toFixed(0)}ms</td><td>${a.cost_share_pct.toFixed(1)}%</td></tr>`;
+    }
+    html += '</table></div></div>';
+  }
+
+  // Recent runs
+  html += `<div class="section"><h2>Recent Runs</h2><div class="card"><table>
+    <tr><th>#</th><th>Status</th><th>Cost</th><th>Latency</th><th>Tokens</th><th>Checks</th><th>Provider</th><th>Time</th></tr>`;
+  for (const r of data.recent_runs) {
+    const badge = r.status === 'passed' ? '<span class="badge badge-pass">PASS</span>' : '<span class="badge badge-fail">FAIL</span>';
+    html += `<tr>
+      <td>${r.id}</td><td>${badge}</td>
+      <td>$${r.total_cost.toFixed(6)}</td><td>${r.total_latency_ms.toFixed(0)}ms</td>
+      <td>${r.total_tokens}</td><td>${r.checks_passed}&#10003;/${r.checks_failed}&#10007;</td>
+      <td style="font-size:12px">${esc(r.provider)}/${esc(r.model)}</td>
+      <td style="font-size:12px;color:var(--fg3)">${r.timestamp.slice(0,19)}</td>
+    </tr>`;
+  }
+  html += '</table></div></div>';
+
+  document.getElementById('app').innerHTML = html;
+}
+
+function showOverview() {
+  currentView = 'overview';
+  currentScenario = null;
+  document.getElementById('app').innerHTML = '<div class="loading">Loading...</div>';
+  renderOverview().catch(e => {
+    document.getElementById('app').innerHTML = `<div class="empty-state"><h3>Error loading data</h3><p>${esc(e.message)}</p></div>`;
+  });
+}
+
+showOverview();
+</script>
+</body>
+</html>

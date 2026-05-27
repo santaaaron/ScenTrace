@@ -1,0 +1,14 @@
+description: Missing scenario_id and has wrong types
+
+agents:
+  - name: bot
+    role: helper
+    system_prompt: Help the user
+
+model_config:
+  provider: mock
+  temperature: "not_a_number"
+
+turns:
+  - agent_name: unknown_bot
+    prompt: "Hello"
